@@ -3,8 +3,8 @@ module.exports.config = {
   version: "1.0.0",
   hasPermssion: 1,
   credits: "Arafat",
-  description: "Bot leaves the group",
-  commandCategory: "system",
+  description: "Bot leaves the group when called",
+  commandCategory: "system", // Make sure this is correctly defined
   usages: "#leave",
   cooldowns: 5
 };
@@ -16,6 +16,6 @@ module.exports.run = async function({ api, event }) {
   try {
     await api.removeUserFromGroup(botID, threadID);
   } catch (error) {
-    api.sendMessage("Failed to leave the group. The bot might not have enough permission.", threadID);
+    api.sendMessage("Unable to leave the group. The bot might not have enough permission.", threadID);
   }
 };
