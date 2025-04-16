@@ -1,41 +1,42 @@
 const axios = require("axios");
 const fs = require("fs");
+const path = require("path");
 
 module.exports.config = {
   name: "sura",
   version: "1.0",
-  credits: "Arafat Edit",
   hasPermssion: 0,
-  commandCategory: "Islamic",
-  description: "Play selected Surah audio",
-  usages: "[sura]",
-  cooldowns: 5
+  credits: "Arafat Fix",
+  description: "Listen to Surah from Quran",
+  commandCategory: "islamic",
+  usages: "[reply with number]",
+  cooldowns: 2
 };
 
 const surahList = {
   "Al-Fatiha": {
-    title: "The Opening - Al-Fatiha",
-    url: "https://download.quranicaudio.com/quran/mishaari_raashid_al_3afaasee/001.mp3"
+    title: "The Opening - Surah Al-Fatiha",
+    url: "https://server8.mp3quran.net/afs/001.mp3"
   },
   "Al-Ikhlas": {
-    title: "Sincerity - Al-Ikhlas",
-    url: "https://download.quranicaudio.com/quran/mishaari_raashid_al_3afaasee/112.mp3"
-  },
-  "An-Nas": {
-    title: "Mankind - An-Nas",
-    url: "https://download.quranicaudio.com/quran/mishaari_raashid_al_3afaasee/114.mp3"
+    title: "Sincerity - Surah Al-Ikhlas",
+    url: "https://server8.mp3quran.net/afs/112.mp3"
   },
   "Al-Falaq": {
-    title: "The Daybreak - Al-Falaq",
-    url: "https://download.quranicaudio.com/quran/mishaari_raashid_al_3afaasee/113.mp3"
+    title: "The Daybreak - Surah Al-Falaq",
+    url: "https://server8.mp3quran.net/afs/113.mp3"
+  },
+  "An-Nas": {
+    title: "Mankind - Surah An-Nas",
+    url: "https://server8.mp3quran.net/afs/114.mp3"
   }
 };
 
-module.exports.run = async ({ api, event }) => {
-  let msg = "🕋 Please choose a Surah:\n";
+module.exports.run = async function ({ api, event }) {
   const keys = Object.keys(surahList);
-  keys.forEach((key, i) => {
-    msg += `${i + 1}. ${key}\n`;
+  let msg = "📖 Select a Surah to play:\n\n";
+  keys.forEach((name, index) => {
+    msg += `${index + 1}. ${name}\n`;
   });
 
   return api.sendMessage(msg, event.threadID, (err, info) => {
@@ -48,30 +49,30 @@ module.exports.run = async ({ api, event }) => {
   }, event.messageID);
 };
 
-module.exports.handleReply = async ({ api, event, handleReply }) => {
-  const { author, keys } = handleReply;
+module.exports.handleReply = async function ({ api, event, handleReply }) {
+  const { author, messageID, keys } = handleReply;
   if (event.senderID != author) return;
 
-  const index = parseInt(event.body) - 1;
-  if (isNaN(index) || index < 0 || index >= keys.length) {
-    return api.sendMessage("❌ Invalid choice. Try again.", event.threadID, event.messageID);
+  const choice = parseInt(event.body) - 1;
+  if (isNaN(choice) || choice < 0 || choice >= keys.length) {
+    return api.sendMessage("❌ Invalid selection. Please enter a valid number.", event.threadID, event.messageID);
   }
 
-  const name = keys[index];
-  const info = surahList[name];
+  const name = keys[choice];
+  const surah = surahList[name];
+
+  const filePath = path.join(__dirname, "sura.mp3");
 
   try {
-    const audio = (await axios.get(info.url, { responseType: "arraybuffer" })).data;
-    const filePath = __dirname + "/sura.mp3";
-    fs.writeFileSync(filePath, Buffer.from(audio, "utf-8"));
+    const response = await axios.get(surah.url, { responseType: "arraybuffer" });
+    fs.writeFileSync(filePath, Buffer.from(response.data, "utf-8"));
 
-    return api.sendMessage({
-      body: `▶️ Surah: ${name}\n📖 ${info.title}`,
+    api.sendMessage({
+      body: `▶️ Now playing: ${name}\n${surah.title}`,
       attachment: fs.createReadStream(filePath)
     }, event.threadID, () => fs.unlinkSync(filePath), event.messageID);
-
-  } catch (e) {
-    console.log(e);
-    return api.sendMessage("❌ Failed to load surah audio.", event.threadID, event.messageID);
+  } catch (err) {
+    console.error(err);
+    return api.sendMessage("❌ Couldn't fetch the Surah audio. Try again later.", event.threadID);
   }
 };
