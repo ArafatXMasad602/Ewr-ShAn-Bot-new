@@ -8,7 +8,7 @@ module.exports.config = {
   hasPermssion: 0,
   credits: "Arafat Fix",
   description: "Listen to Surah from Quran",
-  commandCategory: "islamic",
+  commandCategory: "MEDIA",
   usages: "[reply with number]",
   cooldowns: 2
 };
