@@ -5,19 +5,28 @@ const path = require('path');
 module.exports = {
   config: {
     name: "anipic",
-    version: "1.0",
+    version: "1.1",
     author: "Arafat",
     role: 0,
-    shortDescription: { en: "Get anime pictures" },
+    shortDescription: { en: "Get anime images" },
     longDescription: { en: "Fetch up to 50 anime images using Pixabay API and auto delete after 20s" },
     category: "media"
   },
 
   onStart: async function ({ message, args }) {
-    const query = args.join(" ") || "anime";
-    const amount = Math.min(parseInt(args[1]) || 1, 50);
+    let amount = 1;
+    let query = "anime";
+
+    // যদি সংখ্যাটা শেষে থাকে (যেমনঃ Kakashi 3)
+    if (!isNaN(args[args.length - 1])) {
+      amount = parseInt(args.pop());
+    }
+
+    query = args.join(" ") || "anime";
+    amount = Math.min(amount, 50);
+
     const apiKey = "49769725-8378f1c6766c9400bc7f69fc8";
-    const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=photo&category=anime&per_page=${amount}`;
+    const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=${amount}`;
 
     const msg = await message.reply(`Fetching ${amount} anime image(s) for: "${query}"...`);
 
@@ -31,7 +40,7 @@ module.exports = {
 
       const attachments = [];
 
-      for (let i = 0; i < Math.min(data.length, amount); i++) {
+      for (let i = 0; i < data.length; i++) {
         const imageUrl = data[i].largeImageURL;
         const imgPath = path.join(__dirname, `anime_${i}.jpg`);
         const imageData = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -50,7 +59,7 @@ module.exports = {
       }, 20000); // delete after 20s
 
     } catch (err) {
-      console.error("Error:", err.message);
+      console.error("Error fetching images:", err.message);
       message.reply("Something went wrong while fetching anime images.");
     }
   }
