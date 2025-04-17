@@ -5,7 +5,7 @@ const path = require('path');
 module.exports = {
   config: {
     name: "photo",
-    version: "1.0",
+    version: "2.0",
     author: "Arafat",
     role: 0,
     shortDescription: { en: "Get random images by keyword" },
@@ -23,18 +23,13 @@ module.exports = {
 
     message.reply(`Fetching ${amount} image(s) for: "${keyword}"...`);
 
-    const imageLinks = [];
-    for (let i = 0; i < amount; i++) {
-      const url = `https://loremflickr.com/800/600/${encodeURIComponent(keyword)}?random=${Math.random()}`;
-      imageLinks.push(url);
-    }
-
     const attachments = [];
 
-    for (let i = 0; i < imageLinks.length; i++) {
+    for (let i = 0; i < amount; i++) {
+      const url = `https://source.unsplash.com/800x600/?${encodeURIComponent(keyword)}&sig=${Math.floor(Math.random() * 10000)}`;
       const imgPath = path.join(__dirname, `photo_${i}.jpg`);
       try {
-        const res = await axios.get(imageLinks[i], { responseType: 'arraybuffer' });
+        const res = await axios.get(url, { responseType: 'arraybuffer' });
         fs.writeFileSync(imgPath, res.data);
         attachments.push(fs.createReadStream(imgPath));
       } catch (e) {
@@ -54,6 +49,6 @@ module.exports = {
     setTimeout(() => {
       message.unsend(sent.messageID);
       attachments.forEach(a => fs.unlinkSync(a.path));
-    }, 20000); // 20s
+    }, 20000); // 20 seconds
   }
 };
