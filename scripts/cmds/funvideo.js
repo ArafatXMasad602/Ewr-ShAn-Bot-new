@@ -4,39 +4,53 @@ module.exports = {
   config: {
     name: "funvideo",
     version: "1.0",
-    hasPermssion: 0,
-    credits: "Arafat",
-    description: "রেন্ডম ফানি TikTok ভিডিও দেয়",
+    author: "Arafat",
+    countDown: 5,
+    role: 0,
+    shortDescription: "ফানি ভিডিও দেখাও",
+    longDescription: "টিকটক থেকে রেন্ডম ফানি ভিডিও এনে দেখায়",
     category: "media",
-    usages: "#funvideo",
-    cooldowns: 5
+    guide: {
+      en: "{pn}"
+    }
   },
 
   onStart: async function ({ message }) {
     try {
-      // ফানি ভিডিওর কিওয়ার্ড ইউজ করে রেন্ডম ভিডিও খোঁজা
-      const query = "funny tiktok";
-      const res = await axios.get(`https://api.tiklydown.com/api/search?keywords=${encodeURIComponent(query)}`);
-      const videos = res.data?.videos || [];
+      // রেন্ডম কিওয়ার্ড দিয়ে ফানি ভিডিও খোঁজা
+      const keywords = ["funny", "meme", "fail", "comedy", "laugh", "prank"];
+      const query = keywords[Math.floor(Math.random() * keywords.length)];
 
-      if (videos.length === 0) {
-        return message.reply("দুঃখিত, এখন কোনো ফানি ভিডিও পাওয়া যায়নি!");
+      const options = {
+        method: 'GET',
+        url: `https://tiktok-video-no-watermark2.p.rapidapi.com/feed/search`,
+        params: {
+          keywords: query,
+          count: '1'
+        },
+        headers: {
+          'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
+          'x-rapidapi-key': '53fda6446fmshd999012aafb9fc7p190286jsn894094d3d656'
+        }
+      };
+
+      const res = await axios.request(options);
+
+      if (!res.data.data || res.data.data.length === 0) {
+        return message.reply("দুঃখিত, কোনো ফানি ভিডিও খুঁজে পেলাম না।");
       }
 
-      // রেন্ডম ভিডিও সিলেক্ট
-      const randomVideo = videos[Math.floor(Math.random() * videos.length)];
-
-      const videoLink = randomVideo.video_url || randomVideo.download_url;
-
-      if (!videoLink) return message.reply("ভিডিও লিংক খুঁজে পাইনি!");
+      const videoUrl = res.data.data[0].play; // ডাউনলোড লিংক
+      const response = await axios.get(videoUrl, { responseType: 'stream' });
 
       return message.reply({
         body: "এই নে তোর ফানি ভিডিও 🙂🙏🏻",
-        attachment: await global.utils.getStreamFromURL(videoLink)
+        attachment: response.data
       });
+
     } catch (err) {
       console.error(err);
-      return message.reply("টিকটক থেকে ভিডিও আনতে সমস্যা হয়েছে, একটু পর আবার চেষ্টা করো।");
+      return message.reply("ভিডিও আনতে সমস্যা হয়েছে। একটু পরে চেষ্টা করো!");
     }
   }
 };
