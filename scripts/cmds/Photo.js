@@ -7,49 +7,53 @@ module.exports = {
     name: "photo",
     version: "1.0",
     author: "Arafat",
-    countDown: 5,
     role: 0,
-    shortDescription: { en: "Fetch a photo" },
-    longDescription: { en: "Search photo by keyword using Pixabay" },
-    category: "media",
-    guide: { en: "#photo <keyword>" }
+    shortDescription: { en: "Get random images by keyword" },
+    longDescription: { en: "Fetch up to 50 images with keyword and auto delete after 20s" },
+    category: "media"
   },
 
   onStart: async function ({ message, args }) {
-    if (!args[0]) return message.reply("Please provide a search keyword.");
+    const keyword = args[0];
+    const amount = Math.min(parseInt(args[1]) || 1, 50);
 
-    const query = encodeURIComponent(args.join(" "));
-    const apiKey = "37363439-230859b832dcfbe9b673da1ee"; // REPLACE with your own if needed
-    const apiUrl = `https://pixabay.com/api/?key=${apiKey}&q=${query}&image_type=photo&per_page=1`;
-
-    try {
-      const res = await axios.get(apiUrl);
-      const hits = res.data.hits;
-
-      if (!hits || hits.length === 0) {
-        return message.reply("No image found for this keyword.");
-      }
-
-      const imageURL = hits[0].largeImageURL;
-      const imgPath = path.join(__dirname, 'photo.jpg');
-
-      const imgRes = await axios.get(imageURL, { responseType: "arraybuffer" });
-      fs.writeFileSync(imgPath, imgRes.data);
-
-      const sent = await message.reply({
-        body: `Here is your image for "${args.join(" ")}"`,
-        attachment: fs.createReadStream(imgPath)
-      });
-
-      fs.unlinkSync(imgPath);
-
-      setTimeout(() => {
-        message.unsend(sent.messageID);
-      }, 30000);
-
-    } catch (err) {
-      console.error(err.message);
-      return message.reply("Failed to fetch image. Please try again later.");
+    if (!keyword) {
+      return message.reply("Please provide a keyword. Example: #photo cat 5");
     }
+
+    message.reply(`Fetching ${amount} image(s) for: "${keyword}"...`);
+
+    const imageLinks = [];
+    for (let i = 0; i < amount; i++) {
+      const url = `https://loremflickr.com/800/600/${encodeURIComponent(keyword)}?random=${Math.random()}`;
+      imageLinks.push(url);
+    }
+
+    const attachments = [];
+
+    for (let i = 0; i < imageLinks.length; i++) {
+      const imgPath = path.join(__dirname, `photo_${i}.jpg`);
+      try {
+        const res = await axios.get(imageLinks[i], { responseType: 'arraybuffer' });
+        fs.writeFileSync(imgPath, res.data);
+        attachments.push(fs.createReadStream(imgPath));
+      } catch (e) {
+        console.log(`Error fetching image ${i + 1}:`, e.message);
+      }
+    }
+
+    if (attachments.length === 0) {
+      return message.reply("Failed to fetch any image. Try again.");
+    }
+
+    const sent = await message.reply({
+      body: `Here are your "${keyword}" images`,
+      attachment: attachments
+    });
+
+    setTimeout(() => {
+      message.unsend(sent.messageID);
+      attachments.forEach(a => fs.unlinkSync(a.path));
+    }, 20000); // 20s
   }
 };
