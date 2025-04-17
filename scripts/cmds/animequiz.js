@@ -3,10 +3,10 @@ module.exports.config = {
   version: "1.0.0",
   hasPermssion: 0,
   credits: "Arafat",
-  description: "এনিমে কুইজ খেলো",
-  commandCategory: "game",
-  usages: "",
-  cooldowns: 5
+  description: "এনিমে ভিত্তিক কুইজ",
+  category: "game",
+  usages: "animequiz",
+  cooldowns: 5,
 };
 
 module.exports.run = async function ({ api, event }) {
