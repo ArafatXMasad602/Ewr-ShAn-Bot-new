@@ -5,7 +5,7 @@ const path = require('path');
 module.exports = {
   config: {
     name: "photo",
-    version: "2.0",
+    version: "2.1",
     author: "Arafat",
     role: 0,
     shortDescription: { en: "Get random images by keyword" },
@@ -21,24 +21,26 @@ module.exports = {
       return message.reply("Please provide a keyword. Example: #photo cat 5");
     }
 
-    message.reply(`Fetching ${amount} image(s) for: "${keyword}"...`);
+    const msg = await message.reply(`Fetching ${amount} image(s) for: "${keyword}"...`);
 
     const attachments = [];
 
     for (let i = 0; i < amount; i++) {
-      const url = `https://source.unsplash.com/800x600/?${encodeURIComponent(keyword)}&sig=${Math.floor(Math.random() * 10000)}`;
+      const url = `https://source.unsplash.com/800x600/?${encodeURIComponent(keyword)}&sig=${i}`;
       const imgPath = path.join(__dirname, `photo_${i}.jpg`);
       try {
+        // First check if image URL is valid
+        await axios.head(url);
         const res = await axios.get(url, { responseType: 'arraybuffer' });
         fs.writeFileSync(imgPath, res.data);
         attachments.push(fs.createReadStream(imgPath));
       } catch (e) {
-        console.log(`Error fetching image ${i + 1}:`, e.message);
+        console.log(`Error on image ${i + 1}:`, e.message);
       }
     }
 
     if (attachments.length === 0) {
-      return message.reply("Failed to fetch any image. Try again.");
+      return message.reply("Failed to fetch any image. Try again with another keyword.");
     }
 
     const sent = await message.reply({
