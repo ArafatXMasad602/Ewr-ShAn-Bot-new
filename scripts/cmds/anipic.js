@@ -1,56 +1,62 @@
-const axios = require("axios");
+const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
 
 module.exports = {
   config: {
     name: "anipic",
     version: "1.0",
-    author: "Arafat & ChatGPT",
-    countDown: 5,
+    author: "Arafat",
     role: 0,
-    shortDescription: {
-      en: "Fetch anime-style images",
-    },
-    longDescription: {
-      en: "Search and get anime-style illustrations from Pixabay",
-    },
-    category: "image",
-    guide: {
-      en: "{pn} <keyword> [amount]\nExample: {pn} Kakashi 5",
-    },
+    shortDescription: { en: "Get anime pictures" },
+    longDescription: { en: "Fetch up to 50 anime-style images from Pixabay" },
+    category: "media"
   },
 
-  onStart: async function ({ api, event, args }) {
-    const apiKey = "49769725-8378f1c6766c9400bc7f69fc8";
-    
+  onStart: async function ({ message, args }) {
     const query = args.slice(0, -1).join(" ") || "anime";
-    const amountRaw = args[args.length - 1];
-    const amount = (isNaN(amountRaw) ? 1 : parseInt(amountRaw)) || 1;
+    const count = Math.min(parseInt(args[args.length - 1]) || 1, 50);
 
-    if (amount > 50 || amount < 1) {
-      return api.sendMessage("Please choose between 1 to 50 images.", event.threadID, event.messageID);
+    if (!query) {
+      return message.reply("Please provide a keyword. Example: #anipic Naruto 5");
     }
 
-    const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=illustration&per_page=${amount}&safesearch=true`;
+    const apiKey = "49769725-8378f1c6766c9400bc7f69fc8";
+    const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query + " anime")}&image_type=photo&per_page=${count}&safesearch=true`;
 
     try {
       const res = await axios.get(url);
       const data = res.data.hits;
 
       if (!data.length) {
-        return api.sendMessage("No images found for your keyword.", event.threadID, event.messageID);
+        return message.reply("No anime images found. Try a different keyword.");
       }
 
-      const images = await Promise.all(
-        data.map(async (img) => {
-          const imageRes = await axios.get(img.largeImageURL, { responseType: "stream" });
-          return { attachment: imageRes.data };
+      const imagePaths = [];
+
+      const attachments = await Promise.all(
+        data.map(async (img, index) => {
+          const imageRes = await axios.get(img.largeImageURL, { responseType: "arraybuffer" });
+          const imgPath = path.join(__dirname, `anipic_${Date.now()}_${index}.jpg`);
+          fs.writeFileSync(imgPath, imageRes.data);
+          imagePaths.push(imgPath);
+          return fs.createReadStream(imgPath);
         })
       );
 
-      return api.sendMessage(images, event.threadID, event.messageID);
+      const sent = await message.reply({
+        body: `Here are your anime pictures for: ${query}`,
+        attachment: attachments
+      });
+
+      setTimeout(() => {
+        message.unsend(sent.messageID);
+        imagePaths.forEach(p => fs.unlinkSync(p));
+      }, 20000);
+
     } catch (err) {
       console.error("Error fetching images:", err.message);
-      return api.sendMessage("Something went wrong while fetching images.", event.threadID, event.messageID);
+      message.reply("Something went wrong while fetching images. Please try again.");
     }
-  },
+  }
 };
