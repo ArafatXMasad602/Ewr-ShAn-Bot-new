@@ -5,70 +5,64 @@ const path = require('path');
 module.exports = {
   config: {
     name: "photo",
-    version: "3.0",
+    version: "3.1",
     author: "Arafat",
     countDown: 5,
     role: 0,
-    shortDescription: {
-      en: "Get image(s) by keyword"
-    },
-    longDescription: {
-      en: "Type #photo <keyword> [count], and get image(s). Auto delete after 30s"
-    },
+    shortDescription: { en: "Search and get photos" },
+    longDescription: { en: "Search photos from Pixabay and auto delete after 30s" },
     category: "media",
-    guide: {
-      en: "#photo dog\n#photo anime 5"
-    }
+    guide: { en: "#photo <keyword> [count]" }
   },
 
   onStart: async function ({ message, args, api, event }) {
-    if (args.length === 0) return message.reply("Please provide a keyword. Example: `#photo cat 3`");
+    if (!args[0]) return message.reply("Please provide a keyword.\nExample: #photo cat 3");
 
-    let count = 1;
     let keyword = args.join(" ");
+    let count = 1;
 
     if (!isNaN(args[args.length - 1])) {
-      count = parseInt(args[args.length - 1]);
-      keyword = args.slice(0, -1).join(" ");
+      count = parseInt(args.pop());
+      keyword = args.join(" ");
     }
 
-    if (count < 1 || count > 10) return message.reply("You can request between 1 and 10 images.");
+    if (count < 1 || count > 10) return message.reply("You can only request 1 to 10 images.");
 
     const apiKey = "37363439-230859b832dcfbe9b673da1ee";
-    const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(keyword)}&image_type=photo&per_page=${count}`;
+    const apiUrl = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(keyword)}&image_type=photo&per_page=${count}`;
 
     try {
-      const res = await axios.get(url);
-      const results = res.data.hits;
+      const response = await axios.get(apiUrl);
+      const images = response.data.hits;
 
-      if (results.length === 0) return message.reply("No image found.");
+      if (!images || images.length === 0) return message.reply("No images found for your keyword.");
 
       const attachments = [];
 
-      for (let i = 0; i < Math.min(count, results.length); i++) {
-        const imgURL = results[i].webformatURL;
-        const imgPath = path.join(__dirname, `temp_${i}.jpg`);
-
-        const imgRes = await axios.get(imgURL, { responseType: "arraybuffer" });
-        fs.writeFileSync(imgPath, imgRes.data);
-        attachments.push(fs.createReadStream(imgPath));
+      for (let i = 0; i < images.length; i++) {
+        const imageUrl = images[i].largeImageURL;
+        const imagePath = path.join(__dirname, `temp_${i}.jpg`);
+        const imgData = await axios.get(imageUrl, { responseType: "arraybuffer" });
+        fs.writeFileSync(imagePath, imgData.data);
+        attachments.push(fs.createReadStream(imagePath));
       }
 
-      const sent = await message.reply({ body: `Here's your "${keyword}" photo${count > 1 ? 's' : ''}: (auto delete in 30s)`, attachment: attachments });
+      const sent = await message.reply({
+        body: `Found ${attachments.length} image(s) for: "${keyword}"\n(Will auto-delete in 30 seconds)`,
+        attachment: attachments
+      });
 
-      // Clean up local temp files
-      for (let i = 0; i < attachments.length; i++) {
+      for (let i = 0; i < images.length; i++) {
         fs.unlinkSync(path.join(__dirname, `temp_${i}.jpg`));
       }
 
-      // Auto delete after 30 seconds
       setTimeout(() => {
         api.unsendMessage(sent.messageID);
       }, 30000);
 
-    } catch (err) {
-      console.error(err);
-      return message.reply("Something went wrong while fetching the images.");
+    } catch (error) {
+      console.error("Error fetching images:", error.message);
+      return message.reply("Something went wrong while fetching images.\nTry a different keyword.");
     }
   }
 };
