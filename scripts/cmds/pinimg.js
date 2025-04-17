@@ -6,7 +6,7 @@ module.exports.config = {
   hasPermssion: 0,
   credits: "Arafat",
   description: "Fetch images from Pinterest using keyword",
-  commandCategory: "image",
+  commandCategory: "media", // <-- Fixed!
   usages: "[keyword] [amount]",
   cooldowns: 5
 };
@@ -29,7 +29,7 @@ module.exports.run = async function ({ api, event, args }) {
       }
     });
 
-    const pins = res.data.resource_response.data.results;
+    const pins = res.data?.resource_response?.data?.results;
     if (!pins || !pins.length) return api.sendMessage("কোনও ছবি পাওয়া যায়নি!", event.threadID, event.messageID);
 
     const selected = pins.slice(0, amount);
