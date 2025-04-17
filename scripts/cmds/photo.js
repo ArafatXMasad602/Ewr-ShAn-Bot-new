@@ -5,7 +5,7 @@ const path = require('path');
 module.exports = {
   config: {
     name: "photo",
-    version: "2.2",
+    version: "2.3",
     author: "Arafat",
     role: 0,
     shortDescription: { en: "Get images from Pixabay" },
@@ -14,11 +14,13 @@ module.exports = {
   },
 
   onStart: async function ({ message, args }) {
-    const keyword = args[0];
-    const amount = Math.min(parseInt(args[1]) || 1, 50);
+    const keyword = args.slice(0, -1).join(" ") || args.join(" ");
+    const amount = Math.min(parseInt(args[args.length - 1]) || 1, 50);
     const apiKey = '49769725-8378f1c6766c9400bc7f69fc8';
 
-    if (!keyword) return message.reply("Please provide a keyword. Example: #photo cat 3");
+    if (!keyword || keyword.toLowerCase() === "on" || keyword.toLowerCase() === "off") {
+      return message.reply("Please provide a keyword. Example: #photo cat 3");
+    }
 
     const msg = await message.reply(`Fetching ${amount} image(s) for: "${keyword}"...`);
 
@@ -26,7 +28,7 @@ module.exports = {
       const res = await axios.get(`https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(keyword)}&image_type=photo&per_page=${amount}`);
       const images = res.data.hits;
 
-      if (images.length === 0) return message.reply("No images found for your keyword.");
+      if (!images || images.length === 0) return message.reply("No images found for your keyword.");
 
       const attachments = [];
 
@@ -46,11 +48,11 @@ module.exports = {
       setTimeout(() => {
         message.unsend(sent.messageID);
         attachments.forEach(a => fs.unlinkSync(a.path));
-      }, 20000); // auto-delete in 20s
+      }, 20000); // 20 সেকেন্ডে ডিলিট
 
     } catch (err) {
       console.error("Fetch error:", err.message);
-      return message.reply("Something went wrong while fetching images.");
+      return message.reply("Something went wrong while fetching images. Please try again.");
     }
   }
 };
