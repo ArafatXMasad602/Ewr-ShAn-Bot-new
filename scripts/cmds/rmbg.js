@@ -4,56 +4,59 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "rmbg",
-    version: "1.1",
+    name: "removebg",
+    aliases: ["rmbg", "nobg"],
+    version: "1.0",
     author: "Arafat",
-    shortDescription: { en: "Remove background from image" },
-    longDescription: { en: "Removes background from JPG or PNG image using Remove.bg API" },
-    category: "media",
-    role: 0
+    countDown: 5,
+    role: 0,
+    shortDescription: {
+      en: "Remove background from image"
+    },
+    longDescription: {
+      en: "Removes the background from an image using Remove.bg API"
+    },
+    category: "image",
+    guide: {
+      en: "{p}removebg (reply to image)"
+    }
   },
 
-  onStart: async function ({ message, event, api }) {
-    const replyAttachment = event.messageReply?.attachments?.[0];
+  onStart: async function ({ api, event }) {
+    const { messageReply } = event;
 
-    if (!replyAttachment || !["photo", "image"].includes(replyAttachment.type)) {
-      return message.reply("Please reply to a valid image (JPG or PNG).");
+    if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0 || messageReply.attachments[0].type !== "photo") {
+      return api.sendMessage("Please reply to an image to remove its background.", event.threadID, event.messageID);
     }
 
-    const inputPath = path.join(__dirname, "input_image.png");
-    const outputPath = path.join(__dirname, "no_bg.png");
+    const imageUrl = messageReply.attachments[0].url;
+    const apiKey = "pU61q1YWP8hu2RB2tDpuYFqR"; // তোমার Remove.bg API key
 
     try {
-      // Download the image
-      const imgRes = await axios.get(replyAttachment.url, { responseType: "arraybuffer" });
-      fs.writeFileSync(inputPath, imgRes.data);
-
-      // Upload to remove.bg API
-      const formData = new FormData();
-      formData.append("image_file", fs.createReadStream(inputPath));
-      formData.append("size", "auto");
-
-      const res = await axios.post("https://api.remove.bg/v1.0/removebg", formData, {
+      const response = await axios({
+        method: "post",
+        url: "https://api.remove.bg/v1.0/removebg",
+        data: {
+          image_url: imageUrl,
+          size: "auto"
+        },
         headers: {
-          ...formData.getHeaders(),
-          "X-Api-Key": "pU61q1YWP8hu2RB2tDpuYFqR"
+          "X-Api-Key": apiKey
         },
         responseType: "arraybuffer"
       });
 
-      fs.writeFileSync(outputPath, res.data);
+      const outputPath = path.join(__dirname, "nobg.png");
+      fs.writeFileSync(outputPath, Buffer.from(response.data, "binary"));
 
-      await message.reply({
-        body: "Background removed successfully!",
+      return api.sendMessage({
+        body: "Here is your image without background!",
         attachment: fs.createReadStream(outputPath)
-      });
-
-      fs.unlinkSync(inputPath);
-      fs.unlinkSync(outputPath);
+      }, event.threadID, event.messageID);
 
     } catch (error) {
-      console.error(error?.response?.data || error.message);
-      return message.reply("Failed to remove background. Please check the image and try again.");
+      console.error("Remove.bg error:", error?.response?.data || error.message);
+      return api.sendMessage("Failed to remove background. Please try again later or check your API key.", event.threadID, event.messageID);
     }
   }
 };
