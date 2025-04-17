@@ -1,56 +1,67 @@
-const axios = require("axios");
+const { GoatWrapper } = require('fca-liane-utils');
+const axios = require('axios');
+
+async function getStreamFromURL(url) {
+  const response = await axios.get(url, { responseType: 'stream' });
+  return response.data;
+}
+
+async function fetchFunnyVideos() {
+  try {
+    const response = await axios.get(`https://lyric-search-neon.vercel.app/kshitiz?keyword=${encodeURIComponent("funny video")}`);
+    return response.data;
+  } catch (error) {
+    console.error("API Error:", error);
+    return null;
+  }
+}
 
 module.exports = {
   config: {
     name: "funvideo",
+    aliases: [],
+    author: "𝗔𝗿𝗮𝗳𝗮𝘁",
     version: "1.0",
-    author: "Arafat",
-    countDown: 5,
-    role: 0,
-    shortDescription: "ফানি ভিডিও দেখাও",
-    longDescription: "টিকটক থেকে রেন্ডম ফানি ভিডিও এনে দেখায়",
-    category: "media",
+    shortDescription: {
+      en: "get a random funny video",
+    },
+    longDescription: {
+      en: "fetches a funny video from the internet",
+    },
+    category: "𝗠𝗘𝗗𝗜𝗔",
     guide: {
-      en: "{pn}"
-    }
+      en: "{p}{n}",
+    },
   },
 
-  onStart: async function ({ message }) {
-    try {
-      // রেন্ডম কিওয়ার্ড দিয়ে ফানি ভিডিও খোঁজা
-      const keywords = ["funny", "meme", "fail", "comedy", "laugh", "prank"];
-      const query = keywords[Math.floor(Math.random() * keywords.length)];
+  onStart: async function ({ api, event }) {
+    api.setMessageReaction("🤣", event.messageID, () => {}, true);
 
-      const options = {
-        method: 'GET',
-        url: `https://tiktok-video-no-watermark2.p.rapidapi.com/feed/search`,
-        params: {
-          keywords: query,
-          count: '1'
-        },
-        headers: {
-          'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
-          'x-rapidapi-key': '53fda6446fmshd999012aafb9fc7p190286jsn894094d3d656'
-        }
-      };
+    const videos = await fetchFunnyVideos();
 
-      const res = await axios.request(options);
-
-      if (!res.data.data || res.data.data.length === 0) {
-        return message.reply("দুঃখিত, কোনো ফানি ভিডিও খুঁজে পেলাম না।");
-      }
-
-      const videoUrl = res.data.data[0].play; // ডাউনলোড লিংক
-      const response = await axios.get(videoUrl, { responseType: 'stream' });
-
-      return message.reply({
-        body: "এই নে তোর ফানি ভিডিও 🙂🙏🏻",
-        attachment: response.data
-      });
-
-    } catch (err) {
-      console.error(err);
-      return message.reply("ভিডিও আনতে সমস্যা হয়েছে। একটু পরে চেষ্টা করো!");
+    if (!Array.isArray(videos) || videos.length === 0) {
+      return api.sendMessage("ফানি ভিডিও খুঁজে পাওয়া যায়নি। একটু পরে আবার চেষ্টা করো!", event.threadID, event.messageID);
     }
-  }
+
+    const selectedVideo = videos[Math.floor(Math.random() * videos.length)];
+    const videoUrl = selectedVideo.videoUrl;
+
+    if (!videoUrl) {
+      return api.sendMessage("দুঃখিত, ভিডিও লিংক পাওয়া যায়নি।", event.threadID, event.messageID);
+    }
+
+    try {
+      const videoStream = await getStreamFromURL(videoUrl);
+      await api.sendMessage({
+        body: `নাও ভাই! ফান টাইম শুরু করো!`,
+        attachment: videoStream,
+      }, event.threadID, event.messageID);
+    } catch (error) {
+      console.error(error);
+      api.sendMessage("ভিডিও পাঠাতে গিয়ে সমস্যা হয়েছে। পরে আবার চেষ্টা করো।", event.threadID, event.messageID);
+    }
+  },
 };
+
+const wrapper = new GoatWrapper(module.exports);
+wrapper.applyNoPrefix({ allowPrefix: true });
