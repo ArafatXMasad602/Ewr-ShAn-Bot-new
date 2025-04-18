@@ -1,69 +1,67 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
+const axios = require('axios');
+const fs = require('fs');
+
+async function getStreamFromURL(url) {
+  const response = await axios.get(url, { responseType: 'stream' });
+  return response.data;
+}
+
+async function fetchTikTokVideos(query) {
+  try {
+    const response = await axios.get(`https://lyric-search-neon.vercel.app/kshitiz?keyword=${query}`);
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
 
 module.exports = {
   config: {
     name: "tik",
-    aliases: ["tiktok", "tiktokdl"],
+    aliases: [],
+    author: "𝗔𝗿𝗮𝗳𝗮𝘁 𝗗𝗮",
     version: "1.0",
-    author: "Arafat Da",
-    countDown: 5,
-    role: 0,
-    shortDescription: "টিকটক ভিডিও ডাউনলোড",
-    longDescription: "যে বিষয়ের ভিডিও চাও সেই অনুযায়ী TikTok থেকে ভিডিও এনে দিবে",
-    category: "media",
-    guide: "{pn} <search term>"
+    shortDescription: {
+      en: "Search and send TikTok videos",
+    },
+    longDescription: {
+      en: "Search TikTok videos based on keywords",
+    },
+    category: "MEDIA",
+    guide: {
+      en: "{p}tik [keyword]",
+    },
   },
+  onStart: async function ({ api, event, args }) {
+    api.setMessageReaction("🎥", event.messageID, (err) => {}, true);
+    
+    const query = args.join(" ");
+    if (!query) {
+      return api.sendMessage("দয়া করে একটি কিওয়ার্ড দিন যেমন: #tik Naruto", event.threadID, event.messageID);
+    }
 
-  onStart: async function ({ message, args }) {
-    const searchTerm = args.join(" ");
-    if (!searchTerm) return message.reply("দয়া করে একটা বিষয় লিখো, যেমনঃ `car video`");
+    const videos = await fetchTikTokVideos(query);
+    if (!videos || videos.length === 0) {
+      return api.sendMessage("কোনো ভিডিও খুঁজে পাইনি!", event.threadID, event.messageID);
+    }
 
-    message.reply("ভিডিও খোঁজা হচ্ছে...");
+    const selected = videos[Math.floor(Math.random() * videos.length)];
+    const url = selected.videoUrl;
+
+    if (!url) {
+      return api.sendMessage("ভিডিও লিংক খুঁজে পাওয়া যায়নি!", event.threadID, event.messageID);
+    }
 
     try {
-      // Step 1: Scrape TikTok search results (lite method)
-      const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(searchTerm)}`;
-      const { data } = await axios.get(searchUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        }
-      });
-
-      const $ = cheerio.load(data);
-      const videoLinks = [];
-
-      $("a").each((i, el) => {
-        const href = $(el).attr("href");
-        if (href && href.includes("/video/") && !videoLinks.includes(href)) {
-          videoLinks.push(href);
-        }
-      });
-
-      if (videoLinks.length === 0) {
-        return message.reply("কোনো ভিডিও খুঁজে পাইনি! অন্য কিছু দিয়ে চেষ্টা করো।");
-      }
-
-      // Step 2: Pick random video
-      const randomLink = videoLinks[Math.floor(Math.random() * videoLinks.length)];
-      const fullLink = randomLink.startsWith("http") ? randomLink : `https://www.tiktok.com${randomLink}`;
-
-      // Step 3: Get download link from Tikmate
-      const lookup = await axios.get(`https://api.tikmate.app/api/lookup?url=${encodeURIComponent(fullLink)}`);
-      const { token, id } = lookup.data;
-      if (!token || !id) throw new Error("ডাউনলোড লিংক তৈরি করা যায়নি!");
-
-      const downloadUrl = `https://tikmate.app/download/${token}/${id}.mp4`;
-
-      // Step 4: Send the video
-      message.reply({
-        body: `তোমার ভিডিও এখানে!`,
-        attachment: await global.utils.getStreamFromURL(downloadUrl)
-      });
-
+      const stream = await getStreamFromURL(url);
+      api.sendMessage({
+        body: `Here's a video for "${query}":`,
+        attachment: stream
+      }, event.threadID, event.messageID);
     } catch (err) {
       console.error(err);
-      message.reply("ভিডিও আনতে সমস্যা হয়েছে! আবার চেষ্টা করো।");
+      api.sendMessage("ভিডিও পাঠাতে সমস্যা হয়েছে!", event.threadID, event.messageID);
     }
   }
 };
