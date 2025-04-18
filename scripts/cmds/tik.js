@@ -1,76 +1,78 @@
+module.exports.config = {
+  name: "tik",
+  version: "1.0.0",
+  hasPermission: 0,
+  credits: "Arafat Da",
+  description: "টিকটকে দেওয়া টপিক দিয়ে ভিডিও খুঁজে এনে দেবে",
+  commandCategory: "media",
+  usages: "#tik car video",
+  cooldowns: 5
+};
+
 const axios = require("axios");
 const cheerio = require("cheerio");
+const fs = require("fs");
+const path = require("path");
 
-module.exports = {
-  config: {
-    name: "tik",
-    version: "1.0.0",
-    author: "Arafat Da",
-    countDown: 5,
-    role: 0,
-    shortDescription: "টিকটক থেকে ভিডিও আনো",
-    longDescription: "আপনার দেওয়া বিষয়ে TikTok এ সার্চ দিয়ে র‍্যান্ডম ভিডিও এনে দিবে",
-    category: "media",
-    guide: "{pn} <search>\nউদাহরণ: {pn} Naruto"
-  },
+module.exports.run = async function ({ api, event, args }) {
+  const keyword = args.join(" ");
+  if (!keyword) return api.sendMessage("তুই কি ভুলে গেছিস কী খুঁজবি লিখতে?", event.threadID, event.messageID);
 
-  onStart: async function ({ api, event, args }) {
-    const searchQuery = args.join(" ");
-    if (!searchQuery) return api.sendMessage("দয়া করে একটি সার্চ টার্ম দাও, যেমন: #tik Naruto", event.threadID);
-
-    const loading = await api.sendMessage(`🔍 "${searchQuery}" নিয়ে TikTok-এ ভিডিও খুঁজছি...`, event.threadID);
-
-    try {
-      const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(searchQuery)}`;
-      const { data } = await axios.get(searchUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        }
-      });
-
-      const $ = cheerio.load(data);
-      const videoLinks = [];
-
-      $("a[href*='/video/']").each((i, el) => {
-        const href = $(el).attr("href");
-        if (href && href.includes("/video/") && !videoLinks.includes(href)) {
-          videoLinks.push("https://www.tiktok.com" + href);
-        }
-      });
-
-      if (videoLinks.length === 0) {
-        return api.sendMessage("কোনো ভিডিও খুঁজে পাইনি!", event.threadID, event.messageID);
+  try {
+    const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}`;
+    const { data: html } = await axios.get(searchUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
       }
+    });
 
-      const randomLink = videoLinks[Math.floor(Math.random() * videoLinks.length)];
-
-      const ssstikPage = await axios.post("https://ssstik.io/abc", new URLSearchParams({
-        id: randomLink,
-        locale: "en"
-      }), {
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          "user-agent": "Mozilla/5.0"
-        }
-      });
-
-      const $$ = cheerio.load(ssstikPage.data);
-      const videoDownload = $$('a.without_watermark').attr('href');
-
-      if (!videoDownload) {
-        return api.sendMessage("ভিডিও ডাউনলোড করতে পারিনি। আবার চেষ্টা করো।", event.threadID, event.messageID);
+    const videoLinks = [];
+    const $ = cheerio.load(html);
+    $('a[href*="/video/"]').each((i, el) => {
+      const href = $(el).attr('href');
+      if (href && href.includes('/video/')) {
+        const fullUrl = `https://www.tiktok.com${href}`;
+        if (!videoLinks.includes(fullUrl)) videoLinks.push(fullUrl);
       }
+    });
 
-      const videoStream = await axios.get(videoDownload, { responseType: "stream" });
-
-      return api.sendMessage({
-        body: `✅ ${searchQuery} টপিকের TikTok ভিডিও:`,
-        attachment: videoStream.data
-      }, event.threadID, () => api.unsendMessage(loading.messageID));
-
-    } catch (e) {
-      console.log(e);
-      return api.sendMessage("⚠️ কোনো সমস্যা হয়েছে! আবার চেষ্টা করো।", event.threadID);
+    if (videoLinks.length === 0) {
+      return api.sendMessage("কোনো ভিডিও খুঁজে পাইনি!", event.threadID, event.messageID);
     }
+
+    const randomVideo = videoLinks[Math.floor(Math.random() * videoLinks.length)];
+
+    // Snapsave API ব্যবহার
+    const snapsaveRes = await axios.get(`https://snapsave.app/download-video-tiktok`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      params: { url: randomVideo }
+    });
+
+    const snapsaveHTML = snapsaveRes.data;
+    const $$ = cheerio.load(snapsaveHTML);
+    const videoUrl = $$('a.download-link').attr('href');
+
+    if (!videoUrl) return api.sendMessage("ভিডিও আনতে সমস্যা হচ্ছে! আবার চেষ্টা করো।", event.threadID, event.messageID);
+
+    const videoPath = path.join(__dirname, "cache", `${Date.now()}.mp4`);
+    const videoStream = (await axios.get(videoUrl, { responseType: 'stream' })).data;
+
+    const writer = fs.createWriteStream(videoPath);
+    videoStream.pipe(writer);
+
+    writer.on('finish', () => {
+      api.sendMessage({
+        body: "এই নে তোর ভিডিও",
+        attachment: fs.createReadStream(videoPath)
+      }, event.threadID, () => fs.unlinkSync(videoPath));
+    });
+
+    writer.on('error', () => {
+      return api.sendMessage("ডাউনলোডে সমস্যা হয়েছে। পরে আবার চেষ্টা করো।", event.threadID, event.messageID);
+    });
+
+  } catch (err) {
+    console.log(err);
+    return api.sendMessage("সমস্যা হয়েছে ভাই! আবার চেষ্টা করো।", event.threadID, event.messageID);
   }
 };
