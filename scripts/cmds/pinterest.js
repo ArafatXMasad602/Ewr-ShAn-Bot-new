@@ -1,74 +1,54 @@
 const axios = require("axios");
-const fs = require("fs-extra");
-const path = require("path");
 
 module.exports = {
   config: {
-    name: "pin",
-    aliases: ["pinterest"],
-    version: "1.0.0",
-    author: "kshitiz",
-    role: 0,
-    countDown: 10,
-    shortDescription: {
-      en: "Search images on Pinterest"
-    },
-    category: "image",
-    guide: {
-      en: "{prefix}pin <search query> -<number of images>"
-    }
+    name: "pinterest",
+    version: "1.0",
+    author: "Arafat",
+    description: "Pinterest স্টাইলের ছবি খুঁজে পাঠাবে",
+    category: "media",
+    usages: "#Pinterest Naruto - 20",
+    cooldowns: 5
   },
 
-  onStart: async function ({ api, event, args, usersData }) {
+  onStart: async function ({ event, message, args }) {
+    if (!args[0]) return message.reply("অনুগ্রহ করে একটি কীওয়ার্ড দিন। যেমন: #Pinterest Naruto - 20");
+
+    const input = args.join(" ");
+    const match = input.match(/(.*?)\s*-\s*(\d+)/);
+
+    let keyword, count;
+    if (match) {
+      keyword = match[1].trim();
+      count = Math.min(parseInt(match[2]), 50); // সর্বোচ্চ ৫০টা
+    } else {
+      keyword = input;
+      count = 10; // ডিফল্ট
+    }
+
+    const apiKey = "49769725-8378f1c6766c9400bc7f69fc8";
+    const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(keyword)}&image_type=photo&per_page=${count}`;
+
     try {
-      const searchQuery = args.join(" ");
+      const res = await axios.get(url);
+      const data = res.data.hits;
 
-   
-      if (!searchQuery.includes("-")) {
-        return api.sendMessage(`Invalid format. Example: {prefix}pin cats -5`, event.threadID, event.messageID);
+      if (data.length === 0) {
+        return message.reply("দুঃখিত, কোনো ছবি পাওয়া যায়নি।");
       }
 
-     
-      const [query, numImages] = searchQuery.split("-").map(str => str.trim());
-      const numberOfImages = parseInt(numImages);
+      const images = data.map(img => img.largeImageURL);
 
-     
-      if (isNaN(numberOfImages) || numberOfImages <= 0 || numberOfImages > 25) {
-        return api.sendMessage("Please specify a number between 1 and 25.", event.threadID, event.messageID);
+      for (const img of images) {
+        await message.send({
+          body: `🔍 কিওয়ার্ড: ${keyword}`,
+          attachment: await global.utils.getStreamFromURL(img)
+        });
       }
 
-   
-      const apiUrl = `https://pin-kshitiz.vercel.app/pin?search=${encodeURIComponent(query)}`;
-      const response = await axios.get(apiUrl);
-      const imageData = response.data.result;
-
-     
-      if (!imageData || !Array.isArray(imageData) || imageData.length === 0) {
-        return api.sendMessage(`No images found for "${query}".`, event.threadID, event.messageID);
-      }
-
-    
-      const imgData = [];
-      for (let i = 0; i < Math.min(numberOfImages, imageData.length); i++) {
-        const imageUrl = imageData[i];
-        try {
-          const imgResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-          const imgPath = path.join(__dirname, 'cache', `${i + 1}.jpg`);
-          await fs.outputFile(imgPath, imgResponse.data);
-          imgData.push(fs.createReadStream(imgPath));
-        } catch (error) {
-          console.error(error);
-        }
-      }
-
-     
-      await api.sendMessage({
-        attachment: imgData,
-        body: ``
-      }, event.threadID, event.messageID);
-    } catch (error) {
-      console.error(error);
-      return api.sendMessage(`An error occurred.`, event.threadID, event.messageID);
+    } catch (err) {
+      console.error(err);
+      message.reply("একটা সমস্যা হয়েছে। আবার চেষ্টা করুন!");
     }
   }
 };
