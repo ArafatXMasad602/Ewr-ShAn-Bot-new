@@ -3,20 +3,20 @@ const axios = require("axios");
 module.exports = {
   config: {
     name: "pinterest",
-    aliases: ["pin", "img"],
+    aliases: ["pin", "pimg"],
     version: "1.0",
     author: "Arafat",
     countDown: 5,
     role: 0,
     shortDescription: {
-      en: "Search Pinterest Images"
+      en: "Fetch images from Pinterest"
     },
     longDescription: {
-      en: "Search and fetch up to 50 Pinterest-style images from Google"
+      en: "Fetch up to 50 images from Pinterest using Google CSE"
     },
     category: "media",
     guide: {
-      en: "#pinterest Naruto - 20"
+      en: "#Pinterest <keyword> - <count>\n\nExample:\n#Pinterest Naruto - 20"
     }
   },
 
@@ -44,15 +44,27 @@ module.exports = {
         return api.sendMessage("কোনো ছবি পাওয়া যায়নি!", event.threadID);
       }
 
+      const attachments = [];
       for (const item of items) {
-        await api.sendMessage({
-          body: `📌 ${input} এর Pinterest ছবি`,
-          attachment: await global.utils.getStreamFromURL(item.link)
-        }, event.threadID);
+        try {
+          const imgStream = await global.utils.getStreamFromURL(item.link);
+          attachments.push(imgStream);
+        } catch (err) {
+          console.log("ছবি আনতে সমস্যা:", item.link);
+        }
       }
+
+      if (attachments.length === 0) {
+        return api.sendMessage("ছবি আনতে সমস্যা হয়েছে!", event.threadID);
+      }
+
+      await api.sendMessage({
+        body: `🙃 ${input} এর ${attachments.length} টি Pinterest ছবি`,
+        attachment: attachments
+      }, event.threadID);
     } catch (e) {
       console.error(e);
-      return api.sendMessage("Error হয়েছে Pinterest থেকে ছবি আনতে!", event.threadID);
+      return api.sendMessage("Pinterest থেকে ছবি আনতে সমস্যা হয়েছে!", event.threadID);
     }
   }
 };
